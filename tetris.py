@@ -10,6 +10,10 @@ SHAPES = {
     'Z': [(0, 0), (1, 0), (1, 1), (2, 1)]
 }
 
+X_LEFT = [(-1, 0)]*4
+X_RIGHT = [(1, 0)]*4
+Y_DOWN = [(0, 1)]*4
+
 
 class CollisionError(Exception):
     
@@ -19,7 +23,7 @@ class CollisionError(Exception):
         
         
     def ___str__(self):
-        return f'Collision for block {self.bolck.shape_name} at coordinates {self.collision_coords}.'
+        return f'Collision for block {self.block.shape_name} at coordinates {self.collision_coords}.'
         
         
 class Coord:
@@ -29,11 +33,7 @@ class Coord:
         
     
     def __iter__(self):
-        return iter(self.coords)
-    
-    
-    def __next__(self):
-        
+        return iter(self.coords)        
     
     
     def __repr__(self):
@@ -43,33 +43,32 @@ class Coord:
     def __add__(self, coords_2):
         new_coords = [(coord_1[0]+coord_2[0], coord_1[1]+coord_2[1]) for coord_1, coord_2 in zip(self.coords, coords_2)]
         return Coord(new_coords)
-    
+
+
+
 
 class Block:
     
     def __init__(self, shape_name):
-        self.shape_name = shape_name
-        self.shape_coords = Coord(SHAPES[shape_name])
+        self.shape_name = shape_name # Name of shape type.
+        self.base_coords = Coord(SHAPES[shape_name]) # Base coordinates defining the shape.
+        self.coords = self.base_coords # Actual location on game board.
         
         
     def rotate_clockwise(self):
-        base_coords = Coord(SHAPES[self.shape_name])
+        base_coords = self.base_coords
         rotated_coords = [(-y, x) for x, y in base_coords]
-        
-        # while any([x < 0 for x, _ in rotated_coords]):
-        #     rotated_coords = [(x + 1, y) for x, y in rotated_coords]
-            
-        self.shape_coords += Coord(rotated_coords) - Coord(base_coords)
+        self.base_coords = rotated_coords
+                    
+        self.coords += Coord(rotated_coords) - Coord(base_coords)
         
     
     def rotate_anticlockwise(self):
-        base_coords = Coord(SHAPES[self.shape_name])
-        rotated_coords =  [(y, -x) for x, y in self.shape_coords]
+        base_coords = self.base_coords
+        rotated_coords =  [(y, -x) for x, y in self.coords]
+        self.base_coords = rotated_coords            
         
-        # while any([y < 0 for _, y in rotated_coords]):
-        #     rotated_coords = [(x, y + 1) for x, y in rotated_coords]
-            
-        self.shape_coords = Coord(rotated_coords) - Coord(base_coords)
+        self.coords += Coord(rotated_coords) - Coord(base_coords)
         
         
     def get_block_length(self):
@@ -78,10 +77,12 @@ class Block:
         Returns:
             _type_: _description_
         """
-        y = [y for _, y in self.shape_coords]
+        y = [y for _, y in self.coords]
         return abs(min(y) - max(y))
         
-        
+
+
+
 class Board:
     
     def __init__(self, width=10, height=20):
@@ -97,11 +98,20 @@ class Board:
         Args:
             block (_type_): _description_
         """
-        coords = block.shape_coords
-        for x, y in block.shape_coords:
+        for x, y in block.coords:
             if self.board[y][x] == 1:
-                
-            self.board()
+                raise CollisionError(block, (x, y))
+            self.board[y][x] == 1
+            
+    
+    def remove_block(self, block):
+        """Removes a block from the game board.
+
+        Args:
+            block (_type_): _description_
+        """
+        for x, y in block.coords:
+            self.board[y][x] == 0
         
         
     def clear(self):
@@ -111,10 +121,15 @@ class Board:
     def clear_line(self, line_number):
         self.board[line_number] = [0 for _ in self.width]
         
-        
+
+
+
 class Tetris:
     
     def __init__(self):
+        self.score = 0
+        self.board = Board()
+        self.current_block = None
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
         
@@ -129,3 +144,62 @@ class Tetris:
     def generate_new_bag(self):
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
+        
+        
+    def check_x_collision(self, block, check_left):
+        coords = block.coords
+        if check_left:
+            coords += Coord(X_LEFT)
+        else:
+            coords += Coord(X_RIGHT)
+            
+        board = self.board
+        for x, y in coords:
+            
+            # Check wall collision.
+            if x < 0 or x >= board.width:
+                return True
+            
+            # Check block collision.
+            if board[y][x]:
+                return True
+            
+        return False
+    
+    
+    def check_y_collision(self, block):
+        coords = block.coords + Coord(Y_DOWN)
+        board = self.board
+        for x, y in coords:
+            
+            # Check floor collision.
+            if y >= board.height:
+                return True
+            
+            # Check block collision.
+            if board[y][x]:
+                return True
+            
+        return False
+    
+    
+    def move_left(self, block):
+        if not self.check_x_collision(block, True):
+            block.coords += Coord(X_LEFT)
+            
+    
+    def move_right(self, block):
+        if not self.check_x_collision(block, False):
+            block.coords += Coord(X_RIGHT)
+            
+    
+    def move_down(self, block):
+        if not self.check_y_collision(block):
+            block.coords += Coord(Y_DOWN)
+    
+    
+    def check_line_clear(self):
+        return [i for i, row in enumerate(self.board) if all(row)]
+    
+    
+    def game_loop(self):
