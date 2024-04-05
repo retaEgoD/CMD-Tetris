@@ -1,4 +1,7 @@
 from random import shuffle
+import curses
+from time import time
+
 
 SHAPES = {
     'I': [(0, 0), (1, 0), (2, 0), (3, 0)],  # Long piece
@@ -10,9 +13,19 @@ SHAPES = {
     'Z': [(0, 0), (1, 0), (1, 1), (2, 1)]
 }
 
+SCORES = {
+    'SINGLE': 1,
+    'DOUBLE': 3,
+    'TRIPLE': 5,
+    'TETRIS': 8,
+    'DOUBLE TETRIS': 8
+}
+
 X_LEFT = [(-1, 0)]*4
 X_RIGHT = [(1, 0)]*4
 Y_DOWN = [(0, 1)]*4
+BORDER = '■'
+BLOCK = '□'
 
 
 class CollisionError(Exception):
@@ -88,7 +101,7 @@ class Board:
     def __init__(self, width=10, height=20):
         self.width = width
         self.height = height
-        self.board = [[0 for _ in width] for _ in height + 3] # Height + 3 since longest a piece can be with only one block on screen is long piece.
+        self.board = [[0 for _ in range(width)] for _ in range(height + 3)] # Height + 3 since longest a piece can be with only one block on screen is long piece.
         
         
     def place_block(self, block):
@@ -126,9 +139,11 @@ class Board:
 
 class Tetris:
     
-    def __init__(self):
+    def __init__(self, width=10, height=20):
         self.score = 0
-        self.board = Board()
+        self.width = width
+        self.height = height
+        self.board = Board(width, height)
         self.current_block = None
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
@@ -202,4 +217,46 @@ class Tetris:
         return [i for i, row in enumerate(self.board) if all(row)]
     
     
-    def game_loop(self):
+    def pad_lines(self, amount):
+        for _ in range(amount):
+            self.board.board.insert([0]*self.width, 0)
+            
+            
+    def render(self, screen):
+        width = self.width + 2
+        height = self.height + 2
+        board  = self.board.board
+        
+        rows = [[BORDER if ((i == 0) or (i == width-1)) else ' ' for i in range(width)] for _ in range(height)]
+        rows[0] = BORDER * width
+        rows[-1] = BORDER * width
+        
+        for x, y in zip(range(1, width-1), range(1, height-1)):
+            if board[y-1][x-1]:
+                rows[y][x] = BLOCK
+        
+        for i, row in enumerate(rows):
+            screen.addstr(i, 0, ''.join(row))
+        
+    
+    
+    def game_loop(self, screen):
+        while True:
+            level = self.score//5 + 1
+            t = 0.8 - (level-1)**0.007 # Time between game ticks
+            
+            self.render(screen)
+            screen.refresh()
+            
+            
+            
+def main(screen):
+    screen.timeout(0)
+    
+    game = Tetris()
+    game.game_loop(screen)
+        
+    
+    
+if __name__ == '__main__':
+    curses.wrapper(main)
