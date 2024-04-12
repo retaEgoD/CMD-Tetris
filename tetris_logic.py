@@ -1,6 +1,4 @@
 from random import shuffle
-import curses
-from time import time
 
 
 SHAPES = {
@@ -18,14 +16,12 @@ SCORES = {
     'DOUBLE': 3,
     'TRIPLE': 5,
     'TETRIS': 8,
-    'DOUBLE TETRIS': 8
+    'TETRIS B2B': 12
 }
 
 X_LEFT = [(-1, 0)]*4
 X_RIGHT = [(1, 0)]*4
 Y_DOWN = [(0, 1)]*4
-BORDER = '■'
-BLOCK = '□'
 
 
 class CollisionError(Exception):
@@ -56,11 +52,17 @@ class Coord:
     def __add__(self, coords_2):
         new_coords = [(coord_1[0]+coord_2[0], coord_1[1]+coord_2[1]) for coord_1, coord_2 in zip(self.coords, coords_2)]
         return Coord(new_coords)
+    
+    def __sub__(self, coords_2):
+        new_coords = [(coord_1[0]-coord_2[0], coord_1[1]-coord_2[1]) for coord_1, coord_2 in zip(self.coords, coords_2)]
+        return Coord(new_coords)
 
 
 
 
 class Block:
+    
+    # TODO: Fix anticlockwise rotation
     
     def __init__(self, shape_name):
         self.shape_name = shape_name # Name of shape type.
@@ -114,17 +116,7 @@ class Board:
         for x, y in block.coords:
             if self.board[y][x] == 1:
                 raise CollisionError(block, (x, y))
-            self.board[y][x] == 1
-            
-    
-    def remove_block(self, block):
-        """Removes a block from the game board.
-
-        Args:
-            block (_type_): _description_
-        """
-        for x, y in block.coords:
-            self.board[y][x] == 0
+            self.board[y][x] = 1
         
         
     def clear(self):
@@ -139,21 +131,26 @@ class Board:
 
 class Tetris:
     
+    # TODO: add a hard drop function
+    
     def __init__(self, width=10, height=20):
         self.score = 0
         self.width = width
         self.height = height
         self.board = Board(width, height)
-        self.current_block = None
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
+        self.current_block = self.get_new_shape()
         
         
     def get_new_shape(self):
         if len(self.shape_bag) == 0:
             self.generate_new_bag()
         shape_name = self.shape_bag.pop()
-        return Block(shape_name)
+        new_block = Block(shape_name)
+        for _ in range(5):
+            new_block.coords += Coord(X_RIGHT)
+        return new_block
     
     
     def generate_new_bag(self):
@@ -161,8 +158,8 @@ class Tetris:
         shuffle(self.shape_bag)
         
         
-    def check_x_collision(self, block, check_left):
-        coords = block.coords
+    def check_x_collision(self, check_left):
+        coords = self.current_block.coords
         if check_left:
             coords += Coord(X_LEFT)
         else:
@@ -176,14 +173,14 @@ class Tetris:
                 return True
             
             # Check block collision.
-            if board[y][x]:
+            if board.board[y][x]:
                 return True
             
         return False
     
     
-    def check_y_collision(self, block):
-        coords = block.coords + Coord(Y_DOWN)
+    def check_y_collision(self):
+        coords = self.current_block.coords + Coord(Y_DOWN)
         board = self.board
         for x, y in coords:
             
@@ -192,25 +189,25 @@ class Tetris:
                 return True
             
             # Check block collision.
-            if board[y][x]:
+            if board.board[y][x]:
                 return True
             
         return False
     
     
-    def move_left(self, block):
-        if not self.check_x_collision(block, True):
-            block.coords += Coord(X_LEFT)
+    def move_left(self):
+        if not self.check_x_collision(True):
+            self.current_block.coords += Coord(X_LEFT)
             
     
-    def move_right(self, block):
-        if not self.check_x_collision(block, False):
-            block.coords += Coord(X_RIGHT)
+    def move_right(self):
+        if not self.check_x_collision(False):
+            self.current_block.coords += Coord(X_RIGHT)
             
     
-    def move_down(self, block):
-        if not self.check_y_collision(block):
-            block.coords += Coord(Y_DOWN)
+    def move_down(self):
+        if not self.check_y_collision():
+            self.current_block.coords += Coord(Y_DOWN)
     
     
     def check_line_clear(self):
@@ -222,41 +219,3 @@ class Tetris:
             self.board.board.insert([0]*self.width, 0)
             
             
-    def render(self, screen):
-        width = self.width + 2
-        height = self.height + 2
-        board  = self.board.board
-        
-        rows = [[BORDER if ((i == 0) or (i == width-1)) else ' ' for i in range(width)] for _ in range(height)]
-        rows[0] = BORDER * width
-        rows[-1] = BORDER * width
-        
-        for x, y in zip(range(1, width-1), range(1, height-1)):
-            if board[y-1][x-1]:
-                rows[y][x] = BLOCK
-        
-        for i, row in enumerate(rows):
-            screen.addstr(i, 0, ''.join(row))
-        
-    
-    
-    def game_loop(self, screen):
-        while True:
-            level = self.score//5 + 1
-            t = 0.8 - (level-1)**0.007 # Time between game ticks
-            
-            self.render(screen)
-            screen.refresh()
-            
-            
-            
-def main(screen):
-    screen.timeout(0)
-    
-    game = Tetris()
-    game.game_loop(screen)
-        
-    
-    
-if __name__ == '__main__':
-    curses.wrapper(main)
