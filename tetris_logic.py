@@ -1,4 +1,5 @@
 from random import shuffle
+from copy import deepcopy
 
 
 SHAPES = {
@@ -62,7 +63,7 @@ class Coord:
 
 class Block:
     
-    # TODO: Fix anticlockwise rotation
+    # TODO: Fix rotation algorithm (rotate about origin)
     
     def __init__(self, shape_name):
         self.shape_name = shape_name # Name of shape type.
@@ -80,7 +81,7 @@ class Block:
     
     def rotate_anticlockwise(self):
         base_coords = self.base_coords
-        rotated_coords =  [(y, -x) for x, y in self.coords]
+        rotated_coords =  [(y, -x) for x, y in base_coords]
         self.base_coords = rotated_coords            
         
         self.coords += Coord(rotated_coords) - Coord(base_coords)
@@ -94,6 +95,10 @@ class Block:
         """
         y = [y for _, y in self.coords]
         return abs(min(y) - max(y))
+    
+    
+    def __repr__(self):
+        return self.shape_name
         
 
 
@@ -103,7 +108,7 @@ class Board:
     def __init__(self, width=10, height=20):
         self.width = width
         self.height = height
-        self.board = [[0 for _ in range(width)] for _ in range(height + 3)] # Height + 3 since longest a piece can be with only one block on screen is long piece.
+        self.board = [[0 for _ in range(width)] for _ in range(height)]
         
         
     def place_block(self, block):
@@ -114,13 +119,13 @@ class Board:
             block (_type_): _description_
         """
         for x, y in block.coords:
-            if self.board[y][x] == 1:
-                raise CollisionError(block, (x, y))
+            # if self.board[y][x] == 1:
+            #     raise CollisionError(block, (x, y))
             self.board[y][x] = 1
         
         
     def clear(self):
-        self.board = [[0 for _ in self.width] for _ in self.height + 3]
+        self.board = [[0 for _ in range(self.width)] for _ in range(self.height)]
         
         
     def clear_line(self, line_number):
@@ -131,7 +136,7 @@ class Board:
 
 class Tetris:
     
-    # TODO: add a hard drop function
+    # TODO: Add hold and queue
     
     def __init__(self, width=10, height=20):
         self.score = 0
@@ -158,8 +163,9 @@ class Tetris:
         shuffle(self.shape_bag)
         
         
-    def check_x_collision(self, check_left):
-        coords = self.current_block.coords
+    def check_x_collision(self, check_left, is_current_block=True, block=None):
+        check_block = self.current_block if is_current_block else block
+        coords = check_block.coords
         if check_left:
             coords += Coord(X_LEFT)
         else:
@@ -169,7 +175,7 @@ class Tetris:
         for x, y in coords:
             
             # Check wall collision.
-            if x < 0 or x >= board.width:
+            if x < 0 or x >= self.width:
                 return True
             
             # Check block collision.
@@ -179,13 +185,14 @@ class Tetris:
         return False
     
     
-    def check_y_collision(self):
-        coords = self.current_block.coords + Coord(Y_DOWN)
+    def check_y_collision(self, is_current_block=True, block=None):
+        check_block = self.current_block if is_current_block else block
+        coords = check_block.coords + Coord(Y_DOWN)
         board = self.board
         for x, y in coords:
             
             # Check floor collision.
-            if y >= board.height:
+            if y >= self.height:
                 return True
             
             # Check block collision.
@@ -195,27 +202,47 @@ class Tetris:
         return False
     
     
-    def move_left(self):
-        if not self.check_x_collision(True):
-            self.current_block.coords += Coord(X_LEFT)
+    def move_left(self, is_current_block=True, block=None):
+        move_block = self.current_block if is_current_block else block
+        if not self.check_x_collision(True, is_current_block, block):
+            move_block.coords += Coord(X_LEFT)
             
     
-    def move_right(self):
-        if not self.check_x_collision(False):
-            self.current_block.coords += Coord(X_RIGHT)
+    def move_right(self, is_current_block=True, block=None):
+        move_block = self.current_block if is_current_block else block
+        if not self.check_x_collision(False, is_current_block, block):
+            move_block.coords += Coord(X_RIGHT)
             
     
-    def move_down(self):
-        if not self.check_y_collision():
-            self.current_block.coords += Coord(Y_DOWN)
+    def move_down(self, is_current_block=True, block=None):
+        move_block = self.current_block if is_current_block else block
+        if not self.check_y_collision(is_current_block, block):
+            move_block.coords += Coord(Y_DOWN)
+            
+            
+    def hard_drop(self):
+        while (not self.check_y_collision()):
+            self.move_down()
+        self.board.place_block(self.current_block)
+        self.current_block = self.get_new_shape()
     
     
     def check_line_clear(self):
-        return [i for i, row in enumerate(self.board) if all(row)]
+        return sorted([i for i, row in enumerate(self.board.board) if all(row)])
     
     
-    def pad_lines(self, amount):
-        for _ in range(amount):
-            self.board.board.insert([0]*self.width, 0)
+    def clear_line(self, line_number):
+        self.board.board = self.board.board[:line_number] + self.board.board[line_number+1:]
+    
+    
+    def pad_line(self):
+        """Function to pad lines when a line is cleared"""
+        self.board.board.insert(0, [0]*self.width)
             
+    
+    def get_ghost_block(self):
+        ghost = deepcopy(self.current_block)
+        while (not self.check_y_collision(False, ghost)):
+            self.move_down(False, ghost)
+        return ghost
             
