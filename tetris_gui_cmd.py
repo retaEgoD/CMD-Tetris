@@ -16,7 +16,7 @@ BLOCK = '□'
 
 class TetrisTerminalGui:
     
-    # TODO: fix block locking timing
+    # TODO: Move some functions to tetris_logic
     
     def __init__(self, screen):
         self.game = Tetris()
@@ -25,17 +25,17 @@ class TetrisTerminalGui:
         
     def handle_keyboard_input(self, ch):
         if (ch == curses.KEY_LEFT or ch == LEFT):
-            self.game.move_left()
+            self.game.move_x(self.game.current_block, True)
         if (ch == curses.KEY_RIGHT or ch == RIGHT):
-            self.game.move_right()
+            self.game.move_x(self.game.current_block, False)
         if (ch == curses.KEY_UP or ch == UP):
             self.game.hard_drop()
         if (ch == curses.KEY_DOWN or ch == DOWN):
-            self.game.move_down()
+            self.game.move_down(self.game.current_block)
         if (ch == ord('z')):
-            self.game.current_block.rotate_anticlockwise()
+            self.game.current_block.rotate_anticlockwise(self.game.width)
         if (ch == ord('x')):
-            self.game.current_block.rotate_clockwise()
+            self.game.current_block.rotate_clockwise(self.game.width)
             
         
             
@@ -67,7 +67,6 @@ class TetrisTerminalGui:
     
     def game_loop(self):
         
-        # TODO: Fix bug when clearing 2+ lines
         
         self.screen.timeout(0)
         prev_time = time()
@@ -75,12 +74,9 @@ class TetrisTerminalGui:
         prev_tetris = False
         
         while True:
-            if self.game.score > 1:
-                print()
-                [print(x) for x in self.game.board.board]
                 
             level = self.game.score//5 + 1
-            t = 0.8 - (level-1)**0.007 # Time between game ticks
+            t = 0.8 - (level-1)*0.007 # Time between game ticks
             
             current_time = time()
             if current_time - prev_time > t:
@@ -91,13 +87,13 @@ class TetrisTerminalGui:
                     self.game.board.place_block(self.game.current_block)
                     self.game.current_block = self.game.get_new_shape()               
                     
-                elif self.game.check_y_collision():
+                elif self.game.check_y_collision(self.game.current_block):
                     # Block is touching floor or another block
                     at_bottom = True
                     
                 else:
                     # Just move block down by one
-                    self.game.move_down()
+                    self.game.move_down(self.game.current_block)
             
             ch = self.screen.getch()
             if ((ch != -1)):
@@ -136,7 +132,6 @@ class TetrisTerminalGui:
                             self.game.clear_line(line)
                             self.game.pad_line()
                         prev_tetris = True
-                [print(x) for x in self.game.board.board]
             
             self.render(self.screen)
             self.screen.refresh()
