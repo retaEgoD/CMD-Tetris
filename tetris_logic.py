@@ -79,18 +79,18 @@ class Coord:
 
 class Block:
     """
-    Represents a block in the game.
+    Represents a block in the.
     
     Attributes:
         shape_name (str): The name of the shape type.
         base_coords (Coord): The base coordinates defining the shape.
-        coords (Coord): The actual location on the game board.
+        coords (Coord): The actual location on the board.
     """
     
     def __init__(self, shape_name):
         self.shape_name = shape_name # Name of shape type.
         self.base_coords = Coord(SHAPES[shape_name]) # Base coordinates defining the shape.
-        self.coords = self.base_coords # Actual location on game board.
+        self.coords = self.base_coords # Actual location on board.
         
         
     def rotate_clockwise(self, max_x):
@@ -142,7 +142,7 @@ class Block:
 
 class Board:
     """
-    Represents the game board.
+    Represents the board.
     
     Attributes:
         width (int): The width of the board.
@@ -158,7 +158,7 @@ class Board:
         
     def place_block(self, block):
         """
-        Places a block onto the game board.
+        Places a block onto the board.
         
         Args:
             block (Block): The block to place.
@@ -180,13 +180,13 @@ class Board:
 
 class Tetris:
     """
-    Represents the game of Tetris.
+    Represents the of Tetris.
     
     Attributes:
         score (int): The current score.
         width (int): The width of the board.
         height (int): The height of the board.
-        board (Board): The game board.
+        board (Board): The board.
         shape_bag (list): A list of shape names.
         current_block (Block): The current block.
     """
@@ -201,6 +201,7 @@ class Tetris:
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
         self.current_block = self.get_new_shape()
+        self.hold_block = None
         
         
     def get_new_shape(self):
@@ -344,6 +345,36 @@ class Tetris:
         Pads the board with an empty line at the top.
         """
         self.board.board.insert(0, [0 for _ in range(self.width)])
+        
+    
+    def clear_lines(self, cleared_lines, no_cleared, prev_tetris):
+        match no_cleared:
+            case 1:
+                self.score += SCORES['SINGLE']
+                self.clear_line(cleared_lines[0])
+                self.pad_line()
+                return False
+            case 2:
+                self.score += SCORES['DOUBLE']
+                for line in cleared_lines:
+                    self.clear_line(line)
+                    self.pad_line()
+                return False
+            case 3:
+                self.score += SCORES['TRIPLE']
+                for line in cleared_lines:
+                    self.clear_line(line)
+                    self.pad_line()
+                return False
+            case 4:
+                if prev_tetris:
+                    self.score += SCORES['TETRIS B2B']
+                else:
+                    self.score += SCORES['TETRIS']
+                for line in cleared_lines:
+                    self.clear_line(line)
+                    self.pad_line()
+                return True
             
     
     def get_ghost_block(self):
@@ -357,4 +388,11 @@ class Tetris:
         while (not self.check_y_collision(ghost)):
             self.move_down(ghost)
         return ghost
+    
+    
+    def get_level(self):
+        return self.score//5 + 1
+    
+    def get_time_tick(self):
+        return 0.8 - (self.get_level()-1)*0.007
             

@@ -75,8 +75,7 @@ class TetrisTerminalGui:
         
         while True:
                 
-            level = self.game.score//5 + 1
-            t = 0.8 - (level-1)*0.007 # Time between game ticks
+            t = self.game.get_time_tick()
             
             current_time = time()
             if current_time - prev_time > t:
@@ -105,33 +104,7 @@ class TetrisTerminalGui:
             cleared_lines = self.game.check_line_clear()
             no_cleared = len(cleared_lines)
             if no_cleared > 0:
-                match no_cleared:
-                    case 1:
-                        self.game.score += SCORES['SINGLE']
-                        self.game.clear_line(cleared_lines[0])
-                        self.game.pad_line()
-                        prev_tetris = False
-                    case 2:
-                        self.game.score += SCORES['DOUBLE']
-                        for line in cleared_lines:
-                            self.game.clear_line(line)
-                            self.game.pad_line()
-                        prev_tetris = False
-                    case 3:
-                        self.game.score += SCORES['TRIPLE']
-                        for line in cleared_lines:
-                            self.game.clear_line(line)
-                            self.game.pad_line()
-                        prev_tetris = False
-                    case 4:
-                        if prev_tetris:
-                            self.game.score += SCORES['TETRIS B2B']
-                        else:
-                            self.game.score += SCORES['TETRIS']
-                        for line in cleared_lines:
-                            self.game.clear_line(line)
-                            self.game.pad_line()
-                        prev_tetris = True
+                prev_tetris = self.game.clear_lines(cleared_lines, no_cleared, prev_tetris)
             
             self.render(self.screen)
             self.screen.refresh()
