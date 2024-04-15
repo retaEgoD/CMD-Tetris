@@ -97,19 +97,20 @@ class Block:
         """
         Rotates the block clockwise.
         """
-        base_coords = self.base_coords
-        rotated_coords = [(-y, x) for x, y in base_coords] if is_clockwise else [(y, -x) for x, y in base_coords]
-        self.base_coords = rotated_coords
-        self.coords += Coord(rotated_coords) - Coord(base_coords)
-        
-        while any([x < 0 for x, _ in self.coords]):
-            self.coords += Coord(X_RIGHT)
-        while any([x >= max_x for x, _ in self.coords]):
-            self.coords += Coord(X_LEFT)
-        while any([y < 0 for _, y in self.coords]):
-            self.coords += Coord(Y_DOWN)
-        while any([(y >= max_y or board[y][x]) for x, y in self.coords]): # Causes crashes
-            self.coords += Coord(Y_UP)
+        if self.shape_name != 'O':
+            base_coords = self.base_coords
+            rotated_coords = [(-y, x) for x, y in base_coords] if is_clockwise else [(y, -x) for x, y in base_coords]
+            self.base_coords = rotated_coords
+            self.coords += Coord(rotated_coords) - Coord(base_coords)
+            
+            while any([x < 0 for x, _ in self.coords]):
+                self.coords += Coord(X_RIGHT)
+            while any([x >= max_x for x, _ in self.coords]):
+                self.coords += Coord(X_LEFT)
+            while any([y < 0 for _, y in self.coords]):
+                self.coords += Coord(Y_DOWN)
+            while any([(y >= max_y or board[y][x]) for x, y in self.coords]): # Causes crashes, index error
+                self.coords += Coord(Y_UP)
     
     
     def __repr__(self):
