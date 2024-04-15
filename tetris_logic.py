@@ -1,8 +1,6 @@
 from random import shuffle
 from copy import deepcopy
 
-WIDTH = 10
-HEIGHT = 20
 
 SHAPES = {
     'I': [(-2, 0), (-1, 0), (0, 0), (1, 0)],  # Long piece
@@ -23,9 +21,16 @@ SCORES = {
     'TETRIS B2B': 12
 }
 
+
+GAME_WIDTH = 10
+GAME_HEIGHT = 20
+BASE_TIME_INTERVAL = 0.8
+INTERVAL_DECREASE_RATE = 0.007
+
 X_LEFT = [(-1, 0)]*4
 X_RIGHT = [(1, 0)]*4
 Y_DOWN = [(0, 1)]*4
+STARTING_PAD = [(5, 0)] * 4
 
 
 class CollisionError(Exception):
@@ -46,7 +51,7 @@ class CollisionError(Exception):
         return f'Collision for block {self.block.shape_name} at coordinates {self.collision_coords}.'
         
         
-class Coord:
+class Coord(tuple):
     """
     Represents a set of coordinates.
     
@@ -54,32 +59,24 @@ class Coord:
         coords (list): A list of coordinates.
     """
     
-    def __init__(self, coords):
-        self.coords = coords
+    def __new__(cls, coords):
+        return super().__new__(cls, coords)
         
+    def __add__(self, other):
+        return Coord([(x[0]+y[0], x[1]+y[1]) for x, y in zip(self, other)])
     
-    def __iter__(self):
-        return iter(self.coords)        
-    
+    def __sub__(self, other):
+        return Coord([(x[0]-y[0], x[1]-y[1]) for x, y in zip(self, other)])
     
     def __repr__(self):
-        return str(self.coords)[1:-1]
-    
-    
-    def __add__(self, coords_2):
-        new_coords = [(coord_1[0]+coord_2[0], coord_1[1]+coord_2[1]) for coord_1, coord_2 in zip(self.coords, coords_2)]
-        return Coord(new_coords)
-    
-    def __sub__(self, coords_2):
-        new_coords = [(coord_1[0]-coord_2[0], coord_1[1]-coord_2[1]) for coord_1, coord_2 in zip(self.coords, coords_2)]
-        return Coord(new_coords)
+        return str(list(self))[1:-1]
 
 
 
 
 class Block:
     """
-    Represents a block in the.
+    Represents a block in Tetris.
     
     Attributes:
         shape_name (str): The name of the shape type.
@@ -88,11 +85,13 @@ class Block:
     """
     
     def __init__(self, shape_name):
-        self.shape_name = shape_name # Name of shape type.
-        self.base_coords = Coord(SHAPES[shape_name]) # Base coordinates defining the shape.
-        self.coords = self.base_coords # Actual location on board.
+        self.shape_name = shape_name
+        self.base_coords = Coord(SHAPES[shape_name])
+        self.coords = self.base_coords
         
-        
+    
+    # TODO: Combine rotation functions
+    
     def rotate_clockwise(self, max_x):
         """
         Rotates the block clockwise.
@@ -121,17 +120,6 @@ class Block:
             self.coords += Coord(X_RIGHT)
         while any([x >= max_x for x, _ in self.coords]):
             self.coords += Coord(X_LEFT)
-        
-        
-    def get_block_length(self):
-        """
-        Gets the length of the block in the y direction.
-
-        Returns:
-            int: The length of the block.
-        """
-        y = [y for _, y in self.coords]
-        return abs(min(y) - max(y))
     
     
     def __repr__(self):
@@ -150,15 +138,15 @@ class Board:
         board (list): A 2D list representing the board.
     """
     
-    def __init__(self, width=10, height=20):
+    def __init__(self, width=GAME_WIDTH, height=GAME_HEIGHT):
         self.width = width
         self.height = height
         self.board = [[0 for _ in range(width)] for _ in range(height)]
         
         
-    def place_block(self, block):
+    def add_block(self, block):
         """
-        Places a block onto the board.
+        Adds a block onto the board.
         
         Args:
             block (Block): The block to place.
@@ -174,6 +162,23 @@ class Board:
         Clears the board.
         """
         self.board = [[0 for _ in range(self.width)] for _ in range(self.height)]
+    
+    
+    def clear_line(self, line_number):
+        """
+        Clears a line from the board.
+
+        Args:
+            line_number (int): The number of the line to clear.
+        """
+        self.board.pop(line_number)
+    
+    
+    def pad_line(self):
+        """
+        Pads the board with an empty line at the top.
+        """
+        self.board.insert(0, [0 for _ in range(self.width)])
         
 
 
@@ -191,9 +196,9 @@ class Tetris:
         current_block (Block): The current block.
     """
     
-    # TODO: Add hold and queue
+    # TODO: Add queue
     
-    def __init__(self, width=10, height=20):
+    def __init__(self, width=GAME_WIDTH, height=GAME_HEIGHT):
         self.score = 0
         self.width = width
         self.height = height
@@ -201,7 +206,8 @@ class Tetris:
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
         self.current_block = self.get_new_shape()
-        self.hold_block = None
+        self.held_block = None
+        self.was_prev_clear_tetris = False
         
         
     def get_new_shape(self):
@@ -215,10 +221,7 @@ class Tetris:
             self.generate_new_bag()
         shape_name = self.shape_bag.pop()
         new_block = Block(shape_name)
-        for _ in range(5):
-            new_block.coords += Coord(X_RIGHT)
-        for _ in range(2):
-            new_block.coords += Coord(Y_DOWN)
+        new_block.coords += Coord(STARTING_PAD)
         return new_block
     
     
@@ -242,23 +245,11 @@ class Tetris:
             bool: True if there is a collision, False otherwise.
         """
         coords = block.coords
-        if check_left:
-            coords += Coord(X_LEFT)
-        else:
-            coords += Coord(X_RIGHT)
-            
-        board = self.board
-        for x, y in coords:
-            
-            # Check wall collision.
-            if x < 0 or x >= self.width:
-                return True
-            
-            # Check block collision.
-            if board.board[y][x]:
-                return True
-            
-        return False
+        direction = Coord(X_LEFT) if check_left else Coord(X_RIGHT)
+        coords += direction
+        
+        # Check wall collision and block collision
+        return any([(x < 0 or x >= self.width or self.board.board[y][x]) for x, y in coords])
     
     
     def check_y_collision(self, block):
@@ -272,18 +263,8 @@ class Tetris:
             bool: True if there is a collision, False otherwise.
         """
         coords = block.coords + Coord(Y_DOWN)
-        board = self.board
-        for x, y in coords:
-            print(x, y)
-            # Check floor collision.
-            if y >= self.height:
-                return True
-            
-            # Check block collision.
-            if board.board[y][x]:
-                return True
-            
-        return False
+        
+        return any([(y >= self.height or self.board.board[y][x]) for x, y in coords])
     
     
     def move_x(self, block, is_move_left):
@@ -316,65 +297,38 @@ class Tetris:
         """
         while (not self.check_y_collision(self.current_block)):
             self.move_down(self.current_block)
-        self.board.place_block(self.current_block)
-        self.current_block = self.get_new_shape()
+        self.place_block()
     
     
-    def check_line_clear(self):
+    def get_cleared_lines(self):
         """
-        Checks if any lines are cleared.
+        Gets the list of lines cleared, if any.
 
         Returns:
             list: A list of line numbers that are cleared.
         """
         return sorted([i for i, row in enumerate(self.board.board) if all(row)])
-    
-    
-    def clear_line(self, line_number):
-        """
-        Clears a line from the board.
-
-        Args:
-            line_number (int): The number of the line to clear.
-        """
-        self.board.board.pop(line_number)
-    
-    
-    def pad_line(self):
-        """
-        Pads the board with an empty line at the top.
-        """
-        self.board.board.insert(0, [0 for _ in range(self.width)])
         
     
-    def clear_lines(self, cleared_lines, no_cleared, prev_tetris):
-        match no_cleared:
-            case 1:
-                self.score += SCORES['SINGLE']
-                self.clear_line(cleared_lines[0])
-                self.pad_line()
-                return False
-            case 2:
-                self.score += SCORES['DOUBLE']
-                for line in cleared_lines:
-                    self.clear_line(line)
-                    self.pad_line()
-                return False
-            case 3:
-                self.score += SCORES['TRIPLE']
-                for line in cleared_lines:
-                    self.clear_line(line)
-                    self.pad_line()
-                return False
-            case 4:
-                if prev_tetris:
-                    self.score += SCORES['TETRIS B2B']
-                else:
-                    self.score += SCORES['TETRIS']
-                for line in cleared_lines:
-                    self.clear_line(line)
-                    self.pad_line()
-                return True
+    def clear_lines(self, cleared_lines):
+        """
+        Clears full lines on the game board and adds score to the game score according to the score map.
+
+        Args:
+            cleared_lines: The indices of the cleared lines.
+        """
+        score_map = {1: SCORES['SINGLE'], 2: SCORES['DOUBLE'], 3: SCORES['TRIPLE'], 4: SCORES['TETRIS']}
+        if (len(cleared_lines) == 4 and self.was_prev_clear_tetris):
+            self.score += SCORES['TETRIS B2B']
+        else:
+            self.score += score_map[len(cleared_lines)]
+            
+        for line in cleared_lines:
+            self.board.clear_line(line)
+            self.board.pad_line()
+            
+        if (len(cleared_lines) == 4):
+            self.was_prev_clear_tetris = True
             
     
     def get_ghost_block(self):
@@ -390,9 +344,50 @@ class Tetris:
         return ghost
     
     
-    def get_level(self):
+    def get_current_level(self):
+        """
+        Returns the current level of the game based on the score.
+        
+        The level is calculated by dividing the score by 5 and adding 1.
+        
+        Returns:
+            int: The current level of the game.
+        """
         return self.score//5 + 1
     
-    def get_time_tick(self):
-        return 0.8 - (self.get_level()-1)*0.007
-            
+    
+    def get_time_interval(self):
+        """
+        Returns the time interval between each move based on the current level.
+        
+        The time interval decreases as the level increases.
+        
+        Returns:
+            float: The time interval between each move.
+        """
+        level = self.get_current_level()
+        return (BASE_TIME_INTERVAL - (level-1)*INTERVAL_DECREASE_RATE)**(level-1)
+    
+    
+    def place_block(self):
+        """
+        Places the current block on the board and gets a new block.
+        
+        This function is used to place the block on the board when it reaches the bottom.
+        """
+        self.board.add_block(self.current_block)
+        self.current_block = self.get_new_shape()
+        
+        
+    def hold_block(self):
+        """
+        Holds the current block and gets a new block.
+        If there is already a held block, it swaps the held block with the current block.
+        """
+        hold = Block(self.current_block.shape_name)
+        hold.coords += Coord(STARTING_PAD)
+        if self.held_block == None:
+            self.get_new_shape()
+        else:
+            self.current_block = self.held_block
+        self.held_block = hold

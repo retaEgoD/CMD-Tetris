@@ -1,7 +1,7 @@
 import curses
 from time import time
 from itertools import product
-from tetris_logic import Tetris, SCORES
+from tetris_logic import Tetris
 
 
 UP = 450
@@ -15,8 +15,6 @@ BORDER = '■'
 BLOCK = '□'
 
 class TetrisTerminalGui:
-    
-    # TODO: Move some functions to tetris_logic
     
     def __init__(self, screen):
         self.game = Tetris()
@@ -71,11 +69,10 @@ class TetrisTerminalGui:
         self.screen.timeout(0)
         prev_time = time()
         at_bottom = False
-        prev_tetris = False
         
         while True:
                 
-            t = self.game.get_time_tick()
+            t = self.game.get_time_interval()
             
             current_time = time()
             if current_time - prev_time > t:
@@ -83,8 +80,7 @@ class TetrisTerminalGui:
                 
                 if at_bottom:
                     # Place and lock block
-                    self.game.board.place_block(self.game.current_block)
-                    self.game.current_block = self.game.get_new_shape()               
+                    self.game.place_block()  
                     
                 elif self.game.check_y_collision(self.game.current_block):
                     # Block is touching floor or another block
@@ -101,10 +97,10 @@ class TetrisTerminalGui:
                 if (ch == DOWN):
                     prev_time = time()
                     
-            cleared_lines = self.game.check_line_clear()
-            no_cleared = len(cleared_lines)
-            if no_cleared > 0:
-                prev_tetris = self.game.clear_lines(cleared_lines, no_cleared, prev_tetris)
+            cleared_lines = self.game.get_cleared_lines()
+            
+            if len(cleared_lines) > 0:
+                self.game.clear_lines(cleared_lines)
             
             self.render(self.screen)
             self.screen.refresh()
