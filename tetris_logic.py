@@ -29,6 +29,7 @@ INTERVAL_DECREASE_RATE = 0.007
 
 X_LEFT = [(-1, 0)]*4
 X_RIGHT = [(1, 0)]*4
+Y_UP = [(0, -1)]*4
 Y_DOWN = [(0, 1)]*4
 STARTING_PAD = [(5, 0)] * 4
 
@@ -92,34 +93,23 @@ class Block:
     
     # TODO: Combine rotation functions
     
-    def rotate_clockwise(self, max_x):
+    def rotate(self, max_x, max_y, board, is_clockwise):
         """
         Rotates the block clockwise.
         """
         base_coords = self.base_coords
-        rotated_coords = [(-y, x) for x, y in base_coords]
+        rotated_coords = [(-y, x) for x, y in base_coords] if is_clockwise else [(y, -x) for x, y in base_coords]
         self.base_coords = rotated_coords
-                    
         self.coords += Coord(rotated_coords) - Coord(base_coords)
+        
         while any([x < 0 for x, _ in self.coords]):
             self.coords += Coord(X_RIGHT)
         while any([x >= max_x for x, _ in self.coords]):
             self.coords += Coord(X_LEFT)
-        
-    
-    def rotate_anticlockwise(self, max_x):
-        """
-        Rotates the block anticlockwise.
-        """
-        base_coords = self.base_coords
-        rotated_coords =  [(y, -x) for x, y in base_coords]
-        self.base_coords = rotated_coords            
-        
-        self.coords += Coord(rotated_coords) - Coord(base_coords)
-        while any([x < 0 for x, _ in self.coords]):
-            self.coords += Coord(X_RIGHT)
-        while any([x >= max_x for x, _ in self.coords]):
-            self.coords += Coord(X_LEFT)
+        while any([y < 0 for _, y in self.coords]):
+            self.coords += Coord(Y_DOWN)
+        while any([(y >= max_y or board[y][x]) for x, y in self.coords]): # Causes crashes
+            self.coords += Coord(Y_UP)
     
     
     def __repr__(self):
@@ -152,9 +142,9 @@ class Board:
             block (Block): The block to place.
         """
         for x, y in block.coords:
-            if self.board[y][x] == 1:
+            if self.board[y][x] != 0:
                 raise CollisionError(block, (x, y))
-            self.board[y][x] = 1
+            self.board[y][x] = block.shape_name
         
         
     def clear(self):
@@ -249,6 +239,8 @@ class Tetris:
         coords += direction
         
         # Check wall collision and block collision
+        if (any([y < 0 for _, y in coords])):
+            return any([(x < 0 or x >= self.width) for x, _ in coords])
         return any([(x < 0 or x >= self.width or self.board.board[y][x]) for x, y in coords])
     
     
@@ -264,7 +256,7 @@ class Tetris:
         """
         coords = block.coords + Coord(Y_DOWN)
         
-        return any([(y >= self.height or self.board.board[y][x]) for x, y in coords])
+        return any([((y >= 0) and (y >= self.height or self.board.board[y][x])) for x, y in coords])
     
     
     def move_x(self, block, is_move_left):

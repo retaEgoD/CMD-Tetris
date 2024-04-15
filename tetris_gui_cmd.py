@@ -16,6 +16,8 @@ BLOCK = '□'
 
 class TetrisTerminalGui:
     
+    # TODO: Controls suck
+    
     def __init__(self, screen):
         self.game = Tetris()
         self.screen = screen
@@ -31,9 +33,9 @@ class TetrisTerminalGui:
         if (ch == curses.KEY_DOWN or ch == DOWN):
             self.game.move_down(self.game.current_block)
         if (ch == ord('z')):
-            self.game.current_block.rotate_anticlockwise(self.game.width)
+            self.game.current_block.rotate(self.game.width, self.game.height, self.game.board.board, False)
         if (ch == ord('x')):
-            self.game.current_block.rotate_clockwise(self.game.width)
+            self.game.current_block.rotate(self.game.width, self.game.height, self.game.board.board, True)
             
         
             
@@ -80,7 +82,8 @@ class TetrisTerminalGui:
                 
                 if at_bottom:
                     # Place and lock block
-                    self.game.place_block()  
+                    self.game.place_block()
+                    at_bottom = False
                     
                 elif self.game.check_y_collision(self.game.current_block):
                     # Block is touching floor or another block
