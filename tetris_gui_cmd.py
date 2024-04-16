@@ -16,8 +16,6 @@ BLOCK = '□'
 
 class TetrisTerminalGui:
     
-    # TODO: Controls suck
-    
     def __init__(self, screen):
         self.game = Tetris()
         self.screen = screen

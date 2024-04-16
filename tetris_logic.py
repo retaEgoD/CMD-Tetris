@@ -26,6 +26,7 @@ GAME_WIDTH = 10
 GAME_HEIGHT = 20
 BASE_TIME_INTERVAL = 0.8
 INTERVAL_DECREASE_RATE = 0.007
+QUEUE_LENGTH = 5
 
 X_LEFT = [(-1, 0)]*4
 X_RIGHT = [(1, 0)]*4
@@ -197,6 +198,9 @@ class Tetris:
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
         self.current_block = self.get_new_shape()
+        self.queue = []
+        for _ in range(QUEUE_LENGTH):
+            self.queue.append(self.get_new_shape())
         self.held_block = None
         self.was_prev_clear_tetris = False
         
@@ -222,6 +226,15 @@ class Tetris:
         """
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
+        
+        
+    def pop_from_queue(self):
+        """
+        Pops the first element from the block queue and adds another to it.
+        """
+        self.queue.append(self.get_new_shape())
+        self.current_block = self.queue.pop(0)
+        
         
         
     def check_x_collision(self, check_left, block):
@@ -346,7 +359,7 @@ class Tetris:
         Returns:
             int: The current level of the game.
         """
-        return self.score//5 + 1
+        return self.score//10 + 1
     
     
     def get_time_interval(self):
@@ -369,7 +382,7 @@ class Tetris:
         This function is used to place the block on the board when it reaches the bottom.
         """
         self.board.add_block(self.current_block)
-        self.current_block = self.get_new_shape()
+        self.pop_from_queue()
         
         
     def hold_block(self):
@@ -380,7 +393,7 @@ class Tetris:
         hold = Block(self.current_block.shape_name)
         hold.coords += Coord(STARTING_PAD)
         if self.held_block == None:
-            self.get_new_shape()
+            self.pop_from_queue()
         else:
             self.current_block = self.held_block
         self.held_block = hold
