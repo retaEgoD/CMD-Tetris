@@ -314,6 +314,16 @@ class Tetris:
             list: A list of line numbers that are cleared.
         """
         return sorted([i for i, row in enumerate(self.board.board) if all(row)])
+    
+    
+    def check_cleared_lines(self):
+        """
+        Checks if any lines have been cleared.
+
+        Returns:
+            bool: Whether any lines have been cleared.
+        """
+        return len(self.get_cleared_lines) > 0
         
     
     def clear_lines(self, cleared_lines):
