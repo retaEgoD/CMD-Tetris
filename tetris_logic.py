@@ -390,6 +390,12 @@ class Tetris:
     
     
     def get_lock_time_interval(self):
+        """
+        Returns the time interval for locking a block in place.
+
+        Returns:
+            float: The time interval when locking a block.
+        """
         level = self.get_current_level()
         return BASE_TIME_INTERVAL - log10(0.2*level+0.8)
         # return BASE_TIME_INTERVAL - log10(0.25*level+0.75)
