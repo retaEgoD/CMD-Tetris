@@ -31,6 +31,7 @@ MOVE_DOWN_EVENT = pygame.USEREVENT + 2
 CLEAR_LINES_EVENT = pygame.USEREVENT + 3
 
 WHITE = (255, 255, 255)
+RED = (255, 0, 0)
 FPS = 60
 MUSIC_CHANGE_LEVEL_1 = 5
 MUSIC_CHANGE_LEVEL_2 = 11
@@ -86,28 +87,15 @@ FONT_SMALL = font.Font(FONT_PATH/'Viga-Regular.ttf', 40)
 
 # aseteroid.move_ip(random.randint(-1, 1), random.randint(-1, 1)) Screen shake?
 
-
-class TetrisPyGame:
-    
-    # TODO: Game over, make controls not shit, soft drop locks weirdly. Screen shake?
+class TetrisPyGameWindow:
     
     def __init__(self):
-        self.game = Tetris()
         self.window = pygame.display.set_mode((WIDTH, HEIGHT))
-        self.game_started = False
         self.is_visible = True
         self.fade_in_stage = 255
-        pygame.display.set_caption("TETRIS, BABY")
-        
-        
-    def get_pygame_block(self, shape):
-        coords = shape.coords
-        blocks = [pygame.Rect(coords[i][0]*BLOCK_SIZE, coords[i][1]*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE) for i in range(4)]
-        return (shape.shape_name, blocks)
-        
-        
+    
+    
     def draw_start_screen(self):
-        
         self.window.blit(START_BACKGROUND, (0, 0))
         LOGO.set_alpha(255 - self.fade_in_stage)
         if self.fade_in_stage > 0:
@@ -117,68 +105,153 @@ class TetrisPyGame:
         if (self.is_visible and self.fade_in_stage == 0):
             self.window.blit(start_text, (WIDTH//2 - start_text.get_width()//2, 800))
         
-    
-    def draw_game_screen(self):
-        
-        shape_name, coords = self.get_pygame_block(self.game.current_block)
-        top_left_x, top_left_y = BOARD_TOP_LEFT
-        
-        # Backgrounds
+    def draw_backgrounds(self):
         self.window.blit(BOARD_BACKGROUND, (SIDE_WIDTH, 0))
-        for block in coords:
-            self.window.blit(BLOCK_GRAPHICS[shape_name], (block.x + top_left_x, block.y + top_left_y))
         for y in range((int(CORE_HEIGHT/SIDE_WIDTH))):
             self.window.blit(SIDE_BACKGROUND, (0, SIDE_WIDTH*y))
             self.window.blit(SIDE_BACKGROUND, (SIDE_WIDTH + CORE_WIDTH, SIDE_WIDTH*y))
         
+    
+    def draw_board(self, current_block, ghost_block, board, width, height):
+        shape_name, coords = current_block
+        top_left_x, top_left_y = BOARD_TOP_LEFT
         
         # Blocks
-        board = self.game.board.board
-        for x, y in product(range(self.game.width), range(self.game.height)):
+        for block in coords:
+            self.window.blit(BLOCK_GRAPHICS[shape_name], (block.x + top_left_x, block.y + top_left_y))
+        for x, y in product(range(width), range(height)):
             if board[y][x]:
                 self.window.blit(BLOCK_GRAPHICS[board[y][x]], 
                                  (top_left_x + x*BLOCK_SIZE, top_left_y + y*BLOCK_SIZE))
-        for x, y in self.game.get_ghost_block().coords:
+        for x, y in ghost_block.coords:
             self.window.blit(GHOST, (top_left_x + x*BLOCK_SIZE, top_left_y + y*BLOCK_SIZE))
-        
-        # Hold and queue blocks
-        if (self.game.held_block != None):
-            self.window.blit(PIECE_GRAPHICS[self.game.held_block.shape_name], (50, 120))
-        for i, piece in enumerate(self.game.queue):
-            self.window.blit(PIECE_GRAPHICS[piece.shape_name], (SIDE_WIDTH + CORE_WIDTH + 50, (BLOCK_SIZE+QUEUE_SPACING)*i + 100))
-        
+            
         # Border to go over shapes
         self.window.blit(BORDER, (SIDE_WIDTH, 0))
         
+        
+    def draw_side_modules(self, held_block, queue, level):
+        
+        # Hold and queue blocks
+        if (held_block != None):
+            self.window.blit(PIECE_GRAPHICS[held_block.shape_name], (50, 120))
+        for i, piece in enumerate(queue):
+            self.window.blit(PIECE_GRAPHICS[piece.shape_name], (SIDE_WIDTH + CORE_WIDTH + 50, (BLOCK_SIZE+QUEUE_SPACING)*i + 100))
+        
         # Text
-        level_text = FONT_BIG.render(f'LEVEL {self.game.get_current_level()}', True, WHITE)
-        hold_text = FONT_SMALL.render('ON HOLD', True, WHITE)
-        queue_text = FONT_BIG.render('QUEUE', True, WHITE)
+        level_text = FONT_BIG.render(f'LEVEL {level}', True, WHITE)
+        queue_text = FONT_BIG.render('NEXT:', True, WHITE)
         self.window.blit(level_text, (40, 40))
-        if (self.game.held_block != None):
-            self.window.blit(hold_text, (40, 100))
         self.window.blit(queue_text, (SIDE_WIDTH + CORE_WIDTH + 40, 40))
+        
+        # Hold
+        hold_text = FONT_SMALL.render('ON HOLD', True, WHITE)
+        if (held_block != None and self.is_visible):
+            self.window.blit(hold_text, (60, 100))
+            pygame.draw.circle(self.window, RED, (40, 125), 8*SCALE)
+    
+    
+    
+
+
+
+class TetrisPyGame:
+    
+    # TODO: Game over, make controls not shit, soft drop locks weirdly, change hold to only allow one.. Screen shake?
+    
+    def __init__(self):
+        self.game = Tetris()
+        self.window = TetrisPyGameWindow()
+        self.game_started = False
+        pygame.display.set_caption("TETRIS, BABY")
+        
+        
+    def get_pygame_block(self, shape):
+        coords = shape.coords
+        blocks = [pygame.Rect(coords[i][0]*BLOCK_SIZE, coords[i][1]*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE) for i in range(4)]
+        return (shape.shape_name, blocks)
+        
+        
+    def draw_game_screen(self):
+        self.window.draw_backgrounds()
+        self.window.draw_board(self.get_pygame_block(self.game.current_block), 
+                               self.game.get_ghost_block(), 
+                               self.game.board.board, 
+                               self.game.width, 
+                               self.game.height)
+        self.window.draw_side_modules(self.game.held_block, 
+                                      self.game.queue, 
+                                      self.game.get_current_level())
         
 
     def draw_window(self):
         if (not self.game_started):
-            self.draw_start_screen() 
+            self.window.draw_start_screen() 
         else:                            
-            self.draw_game_screen()         
+            self.draw_game_screen()
             
         pygame.display.update()
         
         
     def start_screen_loop(self, events):
-        event_types = [event.type for event in events]
-        if any(event_type in event_types for event_type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]):
-            self.game_started = True
-            mixer.music.load(TETRIS_A)
-            mixer.music.play(3)
-            mixer.music.set_volume(0.1)
-            pygame.time.set_timer(MOVE_DOWN_EVENT, int(self.game.get_time_interval()*1000))
+        for event in events:
+            if (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
+            elif (event.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]):
+                self.game_started = True
+                mixer.music.load(TETRIS_A)
+                mixer.music.play(3)
+                mixer.music.set_volume(0.1)
+                pygame.time.set_timer(MOVE_DOWN_EVENT, int(self.game.get_time_interval()*1000))
                 
+    
+    def handle_events(self, events, at_bottom):
+        for event in events:
+            
+            if (event.type == CLEAR_LINES_EVENT):
+                cleared_lines = self.game.get_cleared_lines()
+                self.game.clear_lines(cleared_lines)
+                CLEAR_SOUNDS[len(cleared_lines)].play()
                 
+            
+            if (event.type == MOVE_DOWN_EVENT):
+                if (at_bottom):
+                    # Place and lock block
+                    self.game.place_block()
+                    SOUNDS["SOFT_DROP_SOUND"].play()
+                    at_bottom = False
+                    
+                elif (self.game.check_y_collision(self.game.current_block)):
+                    # Block is touching floor or another block
+                    at_bottom = True
+                    
+                else:
+                    # Just move block down by one
+                    self.game.move_down(self.game.current_block)
+            
+            
+            if (event.type == pygame.KEYDOWN):
+                
+                if (event.key == pygame.K_ESCAPE):
+                    pygame.event.post(pygame.event.Event(pygame.QUIT))
+                    
+                if (event.key == pygame.K_UP):
+                    self.game.hard_drop()
+                    SOUNDS["HARD_DROP_SOUND"].play()
+                if (event.key == pygame.K_z):
+                    self.game.current_block.rotate(self.game.width, self.game.height, self.game.board.board, False)
+                    SOUNDS["ROTATE_SOUND"].play()
+                if (event.key == pygame.K_x):
+                    self.game.current_block.rotate(self.game.width, self.game.height, self.game.board.board, True)
+                    SOUNDS["ROTATE_SOUND"].play()
+                if (event.key in [pygame.K_LSHIFT, pygame.K_RSHIFT]):
+                    self.game.hold_block()
+                    SOUNDS["HOLD_SOUND"].play()
+                at_bottom = False
+                
+            
+    
+     
     def game_loop(self, events, keys_pressed, clock, level, prev_t, at_bottom, prev_music_change, music_ticker, clock_2):
         
         prev_level = level
@@ -224,52 +297,8 @@ class TetrisPyGame:
         
         ################# EVENT LOOP #################
         
-        for event in events:
-            
-            if (event.tyype == CLEAR_LINES_EVENT):
-                cleared_lines = self.game.get_cleared_lines()
-                self.game.clear_lines(cleared_lines)
-                CLEAR_SOUNDS[len(cleared_lines)].play()
+        self.handle_events(events, at_bottom)
                 
-            
-            if (event.type == MOVE_DOWN_EVENT):
-                if (at_bottom and clock_2 == 48):
-                    # Place and lock block
-                    self.game.place_block()
-                    SOUNDS["SOFT_DROP_SOUND"].play()
-                    at_bottom = False
-                    
-                elif (self.game.check_y_collision(self.game.current_block)):
-                    # Block is touching floor or another block
-                    at_bottom = True
-                    
-                else:
-                    # Just move block down by one
-                    self.game.move_down(self.game.current_block)
-            
-            
-            if (event.type == pygame.KEYDOWN):
-                if (event.key == pygame.K_UP):
-                    self.game.hard_drop()
-                    SOUNDS["HARD_DROP_SOUND"].play()
-                if (event.key == pygame.K_z):
-                    self.game.current_block.rotate(self.game.width, self.game.height, self.game.board.board, False)
-                    SOUNDS["ROTATE_SOUND"].play()
-                if (event.key == pygame.K_x):
-                    self.game.current_block.rotate(self.game.width, self.game.height, self.game.board.board, True)
-                    SOUNDS["ROTATE_SOUND"].play()
-                if (event.key in [pygame.K_LSHIFT, pygame.K_RSHIFT]):
-                    self.game.hold_block()
-                    SOUNDS["HOLD_SOUND"].play()
-                at_bottom = False
-                
-                if (event.key == pygame.K_ESCAPE):
-                    pygame.event.post(pygame.QUIT)
-            
-            if (event.type == pygame.QUIT):
-                run = False
-                
-        
         ################# EVENT LOOP END #################        
         
         if (clock_2 % 4 == 0):
@@ -289,7 +318,7 @@ class TetrisPyGame:
                 at_bottom = False
         
         if self.game.check_cleared_lines():
-            pygame.event.post(CLEAR_LINES_EVENT)
+            pygame.event.post(pygame.event.Event(CLEAR_LINES_EVENT))
         
         
         
@@ -311,14 +340,21 @@ class TetrisPyGame:
         while run:
             
             events = pygame.event.get()
-            if (BLINK_EVENT in [event.type for event in events]):
-                self.is_visible = not self.is_visible
+            event_types = [event.type for event in events]
             
+            # Global events
+            if (pygame.QUIT in event_types):
+                run = False
+            if (BLINK_EVENT in event_types):
+                self.window.is_visible = not self.window.is_visible
+                
+            # Primary game logic
             if (not self.game_started):
                 self.start_screen_loop(events)
             else:
                 keys_pressed = pygame.key.get_pressed()
                 self.game_loop(events, keys_pressed, clock, level, prev_t, at_bottom, prev_music_change, music_ticker, clock_2)
+                
             self.draw_window()
                     
         pygame.quit()

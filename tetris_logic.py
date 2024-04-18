@@ -323,7 +323,7 @@ class Tetris:
         Returns:
             bool: Whether any lines have been cleared.
         """
-        return len(self.get_cleared_lines) > 0
+        return len(self.get_cleared_lines()) > 0
         
     
     def clear_lines(self, cleared_lines):
