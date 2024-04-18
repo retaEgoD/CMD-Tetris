@@ -72,7 +72,7 @@ class TetrisTerminalGui:
         
         while True:
                 
-            t = self.game.get_time_interval()
+            t = self.game.get_move_time_interval()
             
             current_time = time()
             if current_time - prev_time > t:

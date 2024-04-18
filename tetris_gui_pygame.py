@@ -4,7 +4,7 @@ from pygame.transform import scale
 from pathlib import Path
 from tetris_logic import Tetris
 from itertools import product
-
+from time import time
 ################## POSITIONS AND SCALING ##################
 
 SCALE = 1.5
@@ -30,16 +30,19 @@ BLINK_EVENT = pygame.USEREVENT + 1
 MOVE_DOWN_EVENT = pygame.USEREVENT + 2
 CLEAR_LINES_EVENT = pygame.USEREVENT + 3
 LEVEL_UP_EVENT = pygame.USEREVENT + 4
+MUSIC_EVENT = pygame.USEREVENT + 5
 
 GAMEPLAY_KEYS = [pygame.K_ESCAPE, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_z, pygame.K_x, pygame.K_LSHIFT, pygame.K_RSHIFT]
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 GOLD = (255, 223, 0)
-FPS = 60
+FPS = 120
 MUSIC_CHANGE_LEVEL_1 = 5
 MUSIC_CHANGE_LEVEL_2 = 11
 mixer.init()
 font.init()
+
+SOFT_DELAY_TIMES = {}
 
 
 ################## ASSET LOADING ##################
@@ -133,7 +136,7 @@ class TetrisPyGameWindow:
         # Blocks
         for block in coords:
             self.window.blit(BLOCK_GRAPHICS[shape_name], (block.x + top_left_x, block.y + top_left_y))
-        for x, y in product(range(width), range(height)):
+        for x, y in product(range(width), range(height+1)):
             if board[y][x]:
                 self.window.blit(BLOCK_GRAPHICS[board[y][x]], 
                                  (top_left_x + x*BLOCK_SIZE, top_left_y + y*BLOCK_SIZE))
@@ -144,17 +147,19 @@ class TetrisPyGameWindow:
         self.window.blit(BORDER, (SIDE_WIDTH, 0))
         
         
-    def draw_side_modules(self, held_block, just_held, queue, level, prev_clear):
+    def draw_side_modules(self, held_block, just_held, queue, level, score, prev_clear):
         
         # Queue blocks
         for i, piece in enumerate(queue):
-            self.window.blit(PIECE_GRAPHICS[piece.shape_name], (SIDE_WIDTH + CORE_WIDTH + 50, (BLOCK_SIZE+QUEUE_SPACING)*i + 100))
+            self.window.blit(PIECE_GRAPHICS[piece.shape_name], (SIDE_WIDTH + CORE_WIDTH + 65, (BLOCK_SIZE+QUEUE_SPACING)*i + 120))
         
         # Text
         level_text = FONT_BIG.render(f'LEVEL {level}', True, WHITE)
+        score_text = FONT_SMALL_ITALIC.render(f'score: {score}', True, WHITE)
         queue_text = FONT_BIG.render('NEXT:', True, WHITE)
-        self.window.blit(level_text, (40, 40))
-        self.window.blit(queue_text, (SIDE_WIDTH + CORE_WIDTH + 40, 40))
+        self.window.blit(level_text, (30, 40))
+        self.window.blit(score_text, (SIDE_WIDTH + CORE_WIDTH + 40, 20))
+        self.window.blit(queue_text, (SIDE_WIDTH + CORE_WIDTH + 40, 70))
         
         # Hold
         if (held_block != None):
@@ -184,22 +189,37 @@ class TetrisPyGameWindow:
                                game.just_held,
                                game.queue, 
                                game.get_current_level(),
+                               game.score,
                                game.prev_clear)
     
 
 class TetrisPyGame:
     
-    # TODO: Game over, soft drop locks weirdly, refactor globals. Screen shake?
+    # TODO: Game over, main menu, refactor globals, fix game crashing when block pokes out top. Screen shake?
+    # Options: Starting speed, progression speed, soft drop speed
     
     def __init__(self):
+        self.init_globals()
+        self.init_settings()
+        self.prev = time()
+        
+
+    def init_globals(self):
         self.game = Tetris()
         self.window = TetrisPyGameWindow()
+        self.clock = pygame.time.Clock()
         self.run = True
         self.game_started = False
         self.prev_level = 1
-        self.at_bottom = False
+        self.time_last_moved = 0
+        self.music_ticker = 0
+        
+        
+    def init_settings(self):
+        self.reset_move_down_interval()
+        self.clock.tick(FPS)
         pygame.display.set_caption("TETRIS, BABY")
-        pygame.key.set_repeat(150, 50)
+        pygame.key.set_repeat(135, 50)
         
 
     def draw_window(self):
@@ -217,8 +237,18 @@ class TetrisPyGame:
         
     
     def reset_move_down_interval(self):
-        t = int(self.game.get_time_interval()*1000)
+        t = int(self.game.get_move_time_interval()*1000)
         pygame.time.set_timer(MOVE_DOWN_EVENT, t)
+        
+        
+    def check_level_change(self):
+        return self.prev_level != self.game.get_current_level()
+    
+    
+    def check_music_event(self, change_level):
+        current_level = self.game.get_current_level()
+        return self.check_level_change() and (current_level == change_level or (current_level == change_level+1 and self.prev_level == change_level-1))
+        
     
     
     def start_screen_loop(self, events):
@@ -230,38 +260,18 @@ class TetrisPyGame:
                 self.play_music(TETRIS_A)
                 mixer.music.set_volume(0.1)
                 self.reset_move_down_interval
-            
-            
-    def handle_level_up_event(self):
-        SOUNDS["LEVEL_UP_SOUND"].play()
-        self.reset_move_down_interval()
-        self.prev_level = self.game.get_current_level()
-                
-                
-    def handle_line_clear_event(self):
-        cleared_lines = self.game.get_cleared_lines()
-        if (self.game.prev_clear > 4 and len(cleared_lines) < 4):
-            SOUNDS["B2B_BREAK_SOUND"].play()
-            self.game.clear_lines(cleared_lines)
-        else:
-            self.game.clear_lines(cleared_lines)
-            CLEAR_SOUNDS[min(self.game.prev_clear, 7)].play()
                     
                     
-    def handle_move_down_event(self):
-        if (self.at_bottom):
+    def handle_move_down_event(self):        
+        if (self.game.check_y_collision(self.game.current_block) and (time() - self.time_last_moved) >= self.game.get_lock_time_interval()):
             # Place and lock block
             self.game.place_block()
             SOUNDS["SOFT_DROP_SOUND"].play()
-            self.at_bottom = False
-            
-        elif (self.game.check_y_collision(self.game.current_block)):
-            # Block is touching floor or another block
-            self.at_bottom = True
-            
-        else:
+            self.time_last_moved = time()
+        elif (not self.game.check_y_collision(self.game.current_block)):
             # Just move block down by one
             self.game.move_down(self.game.current_block)
+            self.time_last_moved = time()
         
     
     def handle_key_press_event(self, events, keys_pressed):
@@ -295,70 +305,69 @@ class TetrisPyGame:
                     self.game.hold_block()
                     SOUNDS["HOLD_SOUND"].play()
                     
-                self.at_bottom = False
+                self.time_last_moved = time()
         
         if (keys_pressed[pygame.K_DOWN]):
             self.game.move_down(self.game.current_block)  
             self.reset_move_down_interval()
             SOUNDS["MOVE_Y_SOUND"].play()
-            self.at_bottom = False
+            
+                
+    def handle_line_clear_event(self):
+        cleared_lines = self.game.get_cleared_lines()
+        if (self.game.prev_clear > 4 and len(cleared_lines) < 4):
+            SOUNDS["B2B_BREAK_SOUND"].play()
+            self.game.clear_lines(cleared_lines)
+        else:
+            self.game.clear_lines(cleared_lines)
+            CLEAR_SOUNDS[min(self.game.prev_clear, 7)].play()
+            
+            
+    def handle_level_up_event(self):
+        SOUNDS["LEVEL_UP_SOUND"].play()
+        self.reset_move_down_interval()
+        self.prev_level = self.game.get_current_level()
+            
+    
+    def handle_music_event(self):
+        self.music_ticker += 1
+        mixer.music.fadeout(5000)
+        
                 
                 
     def check_game_events(self):
-        if self.game.check_cleared_lines():
-            pygame.event.post(pygame.event.Event(CLEAR_LINES_EVENT))
-        if (self.prev_level != self.game.get_current_level()):
+        if (self.check_music_event(MUSIC_CHANGE_LEVEL_1) or self.check_music_event(MUSIC_CHANGE_LEVEL_2)):
+            pygame.event.post(pygame.event.Event(MUSIC_EVENT))
+        if self.check_level_change():
             pygame.event.post(pygame.event.Event(LEVEL_UP_EVENT))
     
             
     def handle_game_events(self, events, keys_pressed):
         event_types = [event.type for event in events]
-        if (LEVEL_UP_EVENT in event_types):
-            self.handle_level_up_event()
-        if (CLEAR_LINES_EVENT in event_types):
-            self.handle_line_clear_event()
         if (MOVE_DOWN_EVENT in event_types):
             self.handle_move_down_event()
-        if (pygame.KEYDOWN in event_types):
+        if (pygame.KEYDOWN in event_types or keys_pressed != []):
             self.handle_key_press_event(events, keys_pressed)
-    
-     
-    def game_loop(self, events, keys_pressed, clock, prev_music_change, music_ticker):
-        
-        if (MUSIC_CHANGE_LEVEL_1 <= self.game.get_current_level() < MUSIC_CHANGE_LEVEL_2  and prev_music_change != 1):
-            prev_music_change = 1
-            music_ticker = 0
-            mixer.music.fadeout(5000)
+        if (self.game.check_cleared_lines()): # Bad code, but here to prevent cleared line from appearing
+            self.handle_line_clear_event()
+        if (LEVEL_UP_EVENT in event_types):
+            self.handle_level_up_event()
+        if (MUSIC_EVENT in event_types):
+            self.handle_music_event()
             
-            
-        if (self.game.get_current_level() >= MUSIC_CHANGE_LEVEL_2 and prev_music_change != 2):
-            prev_music_change = 2
-            music_ticker = 0
-            mixer.music.fadeout(5000)
-            
-            
-        if (music_ticker != None):
-            music_ticker += 1
-            
-            
-        if (music_ticker == 250 and prev_music_change == 1):
+        if (self.music_ticker not in [0, 150, 300]):
+            self.music_ticker += 1
+        if (self.music_ticker == 149):
             self.play_music(TETRIS_B)
-            
-        if (music_ticker == 250 and prev_music_change == 2):
+        if (self.music_ticker == 299):
             self.play_music(GOD_SHATTERING_STAR)
         
-        
-        clock.tick(FPS)
-        
-        print(clock.get_time())
-        
-        ################# EVENT LOOP #################
-        
-        self.handle_game_events(events, keys_pressed)
-                
-        ################# EVENT LOOP END #################        
+    
+     
+    def game_loop(self, events):
         
         self.check_game_events()
+        self.handle_game_events(events, pygame.key.get_pressed())
     
     
     def handle_global_events(self, events):
@@ -373,26 +382,21 @@ class TetrisPyGame:
         
         
     def main_loop(self):
-        clock = pygame.time.Clock()
         
-        prev_music_change = None
-        
-        music_ticker = None
         pygame.time.set_timer(BLINK_EVENT, 500)
-        self.reset_move_down_interval()
         
         while self.run:
             
+            self.draw_window()
             events = pygame.event.get()
+            
             self.handle_global_events(events)
-            # Primary game logic
+            
             if (not self.game_started):
                 self.start_screen_loop(events)
             else:
-                keys_pressed = pygame.key.get_pressed()
-                self.game_loop(events, keys_pressed, clock, prev_music_change, music_ticker)
+                self.game_loop(events)
                 
-            self.draw_window()
                     
         pygame.quit()
 

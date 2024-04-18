@@ -1,5 +1,6 @@
 from random import shuffle
 from copy import deepcopy
+from math import log10
 
 
 SHAPES = {
@@ -25,7 +26,7 @@ SCORES = {
 GAME_WIDTH = 10
 GAME_HEIGHT = 20
 BASE_TIME_INTERVAL = 0.8
-INTERVAL_DECREASE_RATE = 0.007
+MOVE_INTERVAL_DECREASE_RATE = 0.01
 QUEUE_LENGTH = 5
 
 X_LEFT = [(-1, 0)]*4
@@ -133,7 +134,7 @@ class Board:
     def __init__(self, width=GAME_WIDTH, height=GAME_HEIGHT):
         self.width = width
         self.height = height
-        self.board = [[0 for _ in range(width)] for _ in range(height)]
+        self.board = [[0 for _ in range(width)] for _ in range(height+1)]
         
         
     def add_block(self, block):
@@ -375,7 +376,7 @@ class Tetris:
         return self.score//10 + 1
     
     
-    def get_time_interval(self):
+    def get_move_time_interval(self):
         """
         Returns the time interval between each move based on the current level.
         
@@ -385,7 +386,14 @@ class Tetris:
             float: The time interval between each move.
         """
         level = self.get_current_level()
-        return (BASE_TIME_INTERVAL - (level-1)*INTERVAL_DECREASE_RATE)**(level-1)
+        return max(0.001, (BASE_TIME_INTERVAL - (level-1)*MOVE_INTERVAL_DECREASE_RATE)**(level-1))
+    
+    
+    def get_lock_time_interval(self):
+        level = self.get_current_level()
+        return BASE_TIME_INTERVAL - log10(0.2*level+0.8)
+        # return BASE_TIME_INTERVAL - log10(0.25*level+0.75)
+        
     
     
     def place_block(self):
