@@ -202,7 +202,8 @@ class Tetris:
         for _ in range(QUEUE_LENGTH):
             self.queue.append(self.get_new_shape())
         self.held_block = None
-        self.was_prev_clear_tetris = False
+        self.just_held = False
+        self.prev_clear = 0
         
         
     def get_new_shape(self):
@@ -334,17 +335,19 @@ class Tetris:
             cleared_lines: The indices of the cleared lines.
         """
         score_map = {1: SCORES['SINGLE'], 2: SCORES['DOUBLE'], 3: SCORES['TRIPLE'], 4: SCORES['TETRIS']}
-        if (len(cleared_lines) == 4 and self.was_prev_clear_tetris):
+        if (len(cleared_lines) == 4 and self.prev_clear >= 4):
             self.score += SCORES['TETRIS B2B']
         else:
             self.score += score_map[len(cleared_lines)]
+        
+        if (4 <= self.prev_clear and len(cleared_lines) == 4):
+            self.prev_clear += 1
+        else:
+            self.prev_clear = len(cleared_lines)
             
         for line in cleared_lines:
             self.board.clear_line(line)
             self.board.pad_line()
-            
-        if (len(cleared_lines) == 4):
-            self.was_prev_clear_tetris = True
             
     
     def get_ghost_block(self):
@@ -393,6 +396,7 @@ class Tetris:
         """
         self.board.add_block(self.current_block)
         self.pop_from_queue()
+        self.just_held = False
         
         
     def hold_block(self):
@@ -400,10 +404,12 @@ class Tetris:
         Holds the current block and gets a new block.
         If there is already a held block, it swaps the held block with the current block.
         """
-        hold = Block(self.current_block.shape_name)
-        hold.coords += Coord(STARTING_PAD)
-        if self.held_block == None:
-            self.pop_from_queue()
-        else:
-            self.current_block = self.held_block
-        self.held_block = hold
+        if (not self.just_held):
+            hold = Block(self.current_block.shape_name)
+            hold.coords += Coord(STARTING_PAD)
+            if self.held_block == None:
+                self.pop_from_queue()
+            else:
+                self.current_block = self.held_block
+            self.held_block = hold
+            self.just_held = True
