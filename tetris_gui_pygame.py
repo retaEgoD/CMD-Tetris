@@ -121,7 +121,7 @@ class TetrisPyGameWindow:
             tuple: A tuple containing the shape name and a list of Pygame Rect objects representing the blocks.
         """
         coords = shape.coords
-        blocks = [pygame.Rect(coords[i][0]*BLOCK_SIZE, coords[i][1]*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE) for i in range(4)]
+        blocks = [pygame.Rect(coords[i][0]*BLOCK_SIZE, (coords[i][1]-4)*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE) for i in range(4)]
         return (shape.shape_name, blocks)
     
     
@@ -165,12 +165,12 @@ class TetrisPyGameWindow:
         # Blocks
         for block in coords:
             self.window.blit(BLOCK_GRAPHICS[shape_name], (block.x + top_left_x, block.y + top_left_y))
-        for x, y in product(range(width), range(height+1)):
+        for x, y in product(range(width), range(height)):
             if board[y][x]:
                 self.window.blit(BLOCK_GRAPHICS[board[y][x]], 
-                                 (top_left_x + x*BLOCK_SIZE, top_left_y + y*BLOCK_SIZE))
+                                 (top_left_x + x*BLOCK_SIZE, top_left_y + (y-4)*BLOCK_SIZE))
         for x, y in ghost_block.coords:
-            self.window.blit(GHOST, (top_left_x + x*BLOCK_SIZE, top_left_y + y*BLOCK_SIZE))
+            self.window.blit(GHOST, (top_left_x + x*BLOCK_SIZE, top_left_y + (y-4)*BLOCK_SIZE))
             
         # Border to go over shapes
         self.window.blit(BORDER, (SIDE_WIDTH, 0))
@@ -226,7 +226,7 @@ class TetrisPyGameWindow:
             game (TetrisGame): The Tetris game object.
         """
         self.draw_backgrounds()
-        self.draw_board(self.get_pygame_block(game.current_block), 
+        self.draw_board(self.get_render_block(game.current_block), 
                         game.get_ghost_block(), 
                         game.board.board, 
                         game.width, 
@@ -271,7 +271,7 @@ class TetrisPyGame:
         self.reset_move_down_interval()
         self.clock.tick(FPS)
         pygame.display.set_caption("TETRIS, BABY")
-        pygame.key.set_repeat(135, 50)
+        pygame.key.set_repeat(135, 35)
         
 
     def draw_window(self):

@@ -5,7 +5,7 @@ from math import log10
 
 SHAPES = {
     'I': [(-2, 0), (-1, 0), (0, 0), (1, 0)],  # Long piece
-    'J': [(0, -1), (0, 0), (0, 1), (-1, 1)],
+    'J': [(-1, 1), (-1, 0), (0, 0), (1, 0)],
     'L': [(0, -1), (0, 0), (0, 1), (1, 1)],
     'O': [(-1, -1), (-1, 0), (0, -1), (0, 0)],  # Square
     'S': [(0, -1), (1, -1), (-1, 0), (0, 0)],
@@ -33,7 +33,7 @@ X_LEFT = [(-1, 0)]*4
 X_RIGHT = [(1, 0)]*4
 Y_UP = [(0, -1)]*4
 Y_DOWN = [(0, 1)]*4
-STARTING_PAD = [(5, 0)] * 4
+STARTING_PAD = [(5, 3)] * 4
 
 
 class CollisionError(Exception):
@@ -93,8 +93,6 @@ class Block:
         self.coords = self.base_coords
         
     
-    # TODO: Combine rotation functions
-    
     def rotate(self, max_x, max_y, board, is_clockwise):
         """
         Rotates the block clockwise.
@@ -134,7 +132,7 @@ class Board:
     def __init__(self, width=GAME_WIDTH, height=GAME_HEIGHT):
         self.width = width
         self.height = height
-        self.board = [[0 for _ in range(width)] for _ in range(height+1)]
+        self.board = [[0 for _ in range(width)] for _ in range(height)]
         
         
     def add_block(self, block):
@@ -194,8 +192,8 @@ class Tetris:
     def __init__(self, width=GAME_WIDTH, height=GAME_HEIGHT):
         self.score = 0
         self.width = width
-        self.height = height
-        self.board = Board(width, height)
+        self.height = height+4
+        self.board = Board(width, height+4)
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
         self.current_block = self.get_new_shape()
@@ -219,6 +217,7 @@ class Tetris:
         shape_name = self.shape_bag.pop()
         new_block = Block(shape_name)
         new_block.coords += Coord(STARTING_PAD)
+        
         return new_block
     
     
@@ -427,3 +426,7 @@ class Tetris:
                 self.current_block = self.held_block
             self.held_block = hold
             self.just_held = True
+            
+            
+    def check_game_over(self):
+        
