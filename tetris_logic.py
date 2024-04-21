@@ -5,11 +5,11 @@ from math import log10
 
 SHAPES = {
     'I': [(-2, 0), (-1, 0), (0, 0), (1, 0)],  # Long piece
-    'J': [(-1, 0), (0, 0), (1, 0), (1, 1)],
-    'L': [(-1, 1), (-1, 0), (0, 0), (1, 0)],
+    'J': [(-1, 0), (0, 0), (1, 0), (-1, -1)],
+    'L': [(1, -1), (-1, 0), (0, 0), (1, 0)],
     'O': [(-1, -1), (-1, 0), (0, -1), (0, 0)],  # Square
     'S': [(0, -1), (1, -1), (-1, 0), (0, 0)],
-    'T': [(-1, 0), (0, 0), (1, 0), (0, 1)],
+    'T': [(-1, 0), (0, 0), (1, 0), (0, -1)],
     'Z': [(-1, -1), (0, -1), (0, 0), (1, 0)]
 }
 
@@ -33,7 +33,7 @@ X_LEFT = [(-1, 0)]*4
 X_RIGHT = [(1, 0)]*4
 Y_UP = [(0, -1)]*4
 Y_DOWN = [(0, 1)]*4
-STARTING_PAD = [(5, 3)] * 4
+STARTING_PAD = [(5, 5)] * 4
 
 
 class CollisionError(Exception):
@@ -192,8 +192,8 @@ class Tetris:
     def __init__(self, width=GAME_WIDTH, height=GAME_HEIGHT):
         self.score = 0
         self.width = width
-        self.height = height+4
-        self.board = Board(width, height+4)
+        self.height = height+6
+        self.board = Board(width, height+6)
         self.shape_bag = list(SHAPES.keys())
         shuffle(self.shape_bag)
         self.current_block = self.get_new_shape()
@@ -204,7 +204,9 @@ class Tetris:
         self.just_held = False
         self.prev_clear = 0
         
-        
+    
+    
+    
     def get_new_shape(self):
         """
         Gets a new shape from the shape bag.
@@ -217,6 +219,8 @@ class Tetris:
         shape_name = self.shape_bag.pop()
         new_block = Block(shape_name)
         new_block.coords += Coord(STARTING_PAD)
+        if (shape_name == 'T'):
+            new_block.coords += Coord(Y_UP)
         
         return new_block
     
@@ -229,12 +233,19 @@ class Tetris:
         shuffle(self.shape_bag)
         
         
+    def add_top_pad(self, block):
+        for _ in range(len([1 for row in self.board.board[:6] if any(row)])):
+            block.coords += Coord(Y_UP)
+        return block
+        
+        
     def pop_from_queue(self):
         """
         Pops the first element from the block queue and adds another to it.
+        Moves block up if there are any blocks at the top of or above board.
         """
         self.queue.append(self.get_new_shape())
-        self.current_block = self.queue.pop(0)
+        self.current_block = self.add_top_pad(self.queue.pop(0))
         
         
         
@@ -423,12 +434,12 @@ class Tetris:
             if self.held_block == None:
                 self.pop_from_queue()
             else:
-                self.current_block = self.held_block
+                self.current_block = self.add_top_pad(self.held_block)
             self.held_block = hold
             self.just_held = True
             
             
     def check_game_over(self):
-        if any([any(row) for row in self.board.board[0:2]]):
+        if any([any(row) for row in self.board.board[:4]]):
             return True
         return False

@@ -56,6 +56,7 @@ LOGO = scale(image.load(Path('Assets')/'pyTetris.png'), LOGO_SIZE)
 
 BACKGROUNDS_PATH = Path("Assets/Backgrounds")
 START_BACKGROUND = scale(image.load(BACKGROUNDS_PATH/'Start.png'), (WIDTH, HEIGHT))
+GAME_OVER_BACKGROUND = scale(image.load(BACKGROUNDS_PATH/'Game_Over.png'), (WIDTH, HEIGHT))
 BOARD_BACKGROUND = scale(image.load(BACKGROUNDS_PATH/'Background.png'), BACKGROUND_SCALE)
 BORDER = scale(image.load(BACKGROUNDS_PATH/'Border_transparent.png'), BACKGROUND_SCALE)
 SIDE_BACKGROUND = scale(image.load(BACKGROUNDS_PATH/'Pattern01.png'), SIDE_BACKGROUND_SCALE)
@@ -79,7 +80,7 @@ GOD_SHATTERING_STAR = MUSIC_PATH/'GOD_SHATTERING_STAR.ogg'
 # Sounds
 SOUNDS_PATH = Path("Assets/Sounds")
 SOUND_NAMES = ["MOVE_X_SOUND", "MOVE_Y_SOUND", "ROTATE_SOUND", "HOLD_SOUND", 
-               "HARD_DROP_SOUND", "SOFT_DROP_SOUND", "LEVEL_UP_SOUND", "B2B_BREAK_SOUND"]
+               "HARD_DROP_SOUND", "SOFT_DROP_SOUND", "LEVEL_UP_SOUND", "B2B_BREAK_SOUND", "GAME_OVER_SOUND"]
 SOUNDS = {sound: mixer.Sound(str(SOUNDS_PATH/f'{sound[:-6].lower()}.ogg')) for sound in SOUND_NAMES}
 
 SINGLE_CLEAR_SOUNDS = {i: mixer.Sound(str(Path("Assets/Sounds")/f'clear_{i}.ogg')) for i in range(1, 4)}
@@ -120,7 +121,7 @@ class TetrisPyGameWindow:
             tuple: A tuple containing the shape name and a list of Pygame Rect objects representing the blocks.
         """
         coords = shape.coords
-        blocks = [pygame.Rect(coords[i][0]*BLOCK_SIZE, (coords[i][1]-4)*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE) for i in range(4)]
+        blocks = [pygame.Rect(coords[i][0]*BLOCK_SIZE, (coords[i][1]-6)*BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE) for i in range(4)]
         return (shape.shape_name, blocks)
     
     
@@ -136,6 +137,19 @@ class TetrisPyGameWindow:
         start_text = FONT_SMALL.render("PRESS ANY BUTTON TO START", True, WHITE)
         if (self.is_visible and self.fade_in_stage == 0):
             self.window.blit(start_text, (WIDTH//2 - start_text.get_width()//2, 800))
+            
+            
+    def draw_game_over_screen(self):
+        GAME_OVER_BACKGROUND.set_alpha(max(0, 255 - self.fade_in_stage))
+        if self.fade_in_stage > 0:
+            self.fade_in_stage -= 7
+        self.window.blit(GAME_OVER_BACKGROUND, (0, 0))
+        # self.window.blit(LOGO, (WIDTH//2 - LOGO_SIZE[0]//2, 200))
+        # start_text = FONT_SMALL.render("PRESS ANY BUTTON TO START", True, WHITE)
+        # if (self.is_visible and self.fade_in_stage == 0):
+        #     self.window.blit(start_text, (WIDTH//2 - start_text.get_width()//2, 800))
+        
+            
         
     def draw_backgrounds(self):
         """
@@ -167,9 +181,9 @@ class TetrisPyGameWindow:
         for x, y in product(range(width), range(height)):
             if board[y][x]:
                 self.window.blit(BLOCK_GRAPHICS[board[y][x]], 
-                                 (top_left_x + x*BLOCK_SIZE, top_left_y + (y-4)*BLOCK_SIZE))
+                                 (top_left_x + x*BLOCK_SIZE, top_left_y + (y-6)*BLOCK_SIZE))
         for x, y in ghost_block.coords:
-            self.window.blit(GHOST, (top_left_x + x*BLOCK_SIZE, top_left_y + (y-4)*BLOCK_SIZE))
+            self.window.blit(GHOST, (top_left_x + x*BLOCK_SIZE, top_left_y + (y-6)*BLOCK_SIZE))
             
         # Border to go over shapes
         self.window.blit(BORDER, (SIDE_WIDTH, 0))
@@ -259,7 +273,7 @@ class TetrisPyGame:
         self.game_started = False
         self.prev_level = 1
         self.time_last_moved = 0
-        self.music_ticker = 0
+        self.timer = 0
         self.prev = time()
         
         
@@ -278,9 +292,11 @@ class TetrisPyGame:
         Draws the game window. Called on each iteration of the main loop.
         """
         if (not self.game_started):
-            self.window.draw_start_screen() 
+            self.window.draw_start_screen()
         else:                            
             self.window.draw_game_screen(self.game)
+            if (self.game.check_game_over()):
+                self.window.draw_game_over_screen()
             
         pygame.display.update()
         
@@ -342,7 +358,29 @@ class TetrisPyGame:
                 self.game_started = True
                 self.play_music(TETRIS_A)
                 mixer.music.set_volume(0.1)
-                self.reset_move_down_interval
+                self.reset_move_down_interval()
+                self.window.fade_in_stage = 510
+                
+                
+    def game_over_loop(self, events):
+        """
+        Handles events on the start screen.
+        
+        Args:
+            events (list): A list of Pygame events.
+        """
+        if (self.timer < 301):
+            self.timer = 301
+            mixer.music.stop()
+            SOUNDS["GAME_OVER_SOUND"].play()
+        for event in events:
+            if (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
+            # elif (event.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]):
+            #     self.game_started = True
+            #     self.play_music(TETRIS_A)
+            #     mixer.music.set_volume(0.1)
+            #     self.reset_move_down_interval()
                     
                     
     def handle_move_down_event(self):  
@@ -384,6 +422,7 @@ class TetrisPyGame:
 
                 if (event.key == pygame.K_UP):
                     self.game.hard_drop()
+                    self.reset_move_down_interval()
                     SOUNDS["HARD_DROP_SOUND"].play()
 
                 if (event.key == pygame.K_z):
@@ -435,7 +474,7 @@ class TetrisPyGame:
         """
         Handles the music event, changing the music based on the current level.
         """
-        self.music_ticker += 1
+        self.timer += 1
         mixer.music.fadeout(5000)
         
                 
@@ -468,11 +507,11 @@ class TetrisPyGame:
             self.handle_music_event()
             
         # Use music.get_bsuy()?
-        if (self.music_ticker not in [0, 150, 300]):
-            self.music_ticker += 1
-        if (self.music_ticker == 149):
+        if (self.timer not in [0, 150, 300]):
+            self.timer += 1
+        if (self.timer == 149):
             self.play_music(TETRIS_B)
-        if (self.music_ticker == 299):
+        if (self.timer == 299):
             self.play_music(GOD_SHATTERING_STAR)
         
     
@@ -522,6 +561,8 @@ class TetrisPyGame:
             
             if (not self.game_started):
                 self.start_screen_loop(events)
+            elif (self.game.check_game_over()):
+                self.game_over_loop(events)
             else:
                 self.game_loop(events)
                 
