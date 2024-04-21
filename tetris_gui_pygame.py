@@ -1,5 +1,5 @@
 import pygame
-from pygame import event, mixer, font, image, USEREVENT
+from pygame import mixer, font, image, USEREVENT
 from pygame.transform import scale
 
 
@@ -36,7 +36,6 @@ CLEAR_LINES_EVENT = USEREVENT + 3
 LEVEL_UP_EVENT = USEREVENT + 4
 MUSIC_EVENT = USEREVENT + 5
 
-GAMEPLAY_KEYS = [pygame.K_ESCAPE, pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_z, pygame.K_x, pygame.K_LSHIFT, pygame.K_RSHIFT]
 WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 GOLD = (255, 223, 0)
@@ -241,7 +240,7 @@ class TetrisPyGameWindow:
 
 class TetrisPyGame:
     
-    # TODO: Game over, main menu, pause menu, refactor globals, fix game crashing when block pokes out top, error handling. Screen shake? Check window class?
+    # TODO: Game over, main menu, pause menu, refactor globals, fix game crashing when block pokes out top, error handling, t spins. Screen shake? Check window class?
     # Options: Starting speed, progression speed, different soft drop lock speed, sprint mode. Credits, Keybinds extc.
     
     def __init__(self):
@@ -338,7 +337,7 @@ class TetrisPyGame:
         """
         for event in events:
             if (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
-                event.post(event.Event(pygame.QUIT))
+                pygame.event.post(pygame.event.Event(pygame.QUIT))
             elif (event.type in [pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN]):
                 self.game_started = True
                 self.play_music(TETRIS_A)
@@ -370,10 +369,10 @@ class TetrisPyGame:
             keys_pressed (list): A list of pressed keys.
         """
         for event in events:
-            if (event.type == pygame.KEYDOWN and event.key in GAMEPLAY_KEYS):
+            if (event.type == pygame.KEYDOWN):
                 
                 if (event.key == pygame.K_ESCAPE):
-                    event.post(event.Event(pygame.QUIT))
+                    pygame.event.post(pygame.event.Event(pygame.QUIT))
                     
                 if (event.key == pygame.K_LEFT):
                     self.game.move_x(self.game.current_block, True)
@@ -445,9 +444,9 @@ class TetrisPyGame:
         Checks for new game events.
         """
         if (self.check_music_event(MUSIC_CHANGE_LEVEL_1) or self.check_music_event(MUSIC_CHANGE_LEVEL_2)):
-            event.post(event.Event(MUSIC_EVENT))
+            pygame.event.post(pygame.event.Event(MUSIC_EVENT))
         if self.check_level_change():
-            event.post(event.Event(LEVEL_UP_EVENT))
+            pygame.event.post(pygame.event.Event(LEVEL_UP_EVENT))
     
             
     def handle_game_events(self, events, keys_pressed):
@@ -517,7 +516,7 @@ class TetrisPyGame:
         while self.run:
             
             self.draw_window()
-            events = event.get()
+            events = pygame.event.get()
             
             self.handle_global_events(events)
             
